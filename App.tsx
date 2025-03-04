@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, TextInput, Pressable } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { useState } from 'react';
 import axios from 'axios';
+import { KAKAO_API_KEY } from '@env';
 
 interface Place {
   place_name: string;
@@ -34,7 +35,7 @@ export default function App() {
             page: 1,
           },
           headers: {
-            Authorization: 'KakaoAK 3e19204a5e524b1c689156e130276c37'
+            Authorization: KAKAO_API_KEY
           }
         }
       );
