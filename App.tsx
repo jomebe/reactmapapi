@@ -1,20 +1,19 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, TextInput, Pressable } from 'react-native';
+import { StyleSheet, Text, View, TextInput, Pressable, Alert } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { useState } from 'react';
-import axios from 'axios';
-import { KAKAO_API_KEY } from '@env';
+import * as Location from 'expo-location';
 
-interface Place {
-  place_name: string;
-  x: string;  // longitude
-  y: string;  // latitude
-  address_name: string;
+interface SearchResult {
+  latitude: number;
+  longitude: number;
+  name: string;
+  address: string;
 }
 
 export default function App() {
   const [searchText, setSearchText] = useState('');
-  const [places, setPlaces] = useState<Place[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [region, setRegion] = useState({
     latitude: 37.5665,
     longitude: 126.9780,
@@ -22,37 +21,42 @@ export default function App() {
     longitudeDelta: 0.0421,
   });
 
-  const searchPlaces = async () => {
+  const searchLocation = async () => {
     try {
-      const response = await axios.get(
-        'https://dapi.kakao.com/v2/local/search/keyword.json',
-        {
-          params: {
-            query: searchText,
-            size: 15,
-            sort: 'accuracy',
-            analyze_type: 'exact',
-            page: 1,
-          },
-          headers: {
-            Authorization: KAKAO_API_KEY
-          }
-        }
-      );
+      // 위치 권한 요청
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('권한 오류', '위치 접근 권한이 필요합니다.');
+        return;
+      }
 
-      const places = response.data.documents;
-      setPlaces(places);
+      // 검색어로 위치 검색
+      const geocodeResult = await Location.geocodeAsync(searchText);
       
-      if (places.length > 0) {
+      if (geocodeResult.length > 0) {
+        const location = geocodeResult[0];
+        
+        // 검색 결과 저장
+        setSearchResults([{
+          latitude: location.latitude,
+          longitude: location.longitude,
+          name: searchText,
+          address: searchText // geocodeAsync는 주소를 반환하지 않아서 검색어로 대체
+        }]);
+
+        // 지도 이동
         setRegion({
-          latitude: parseFloat(places[0].y),
-          longitude: parseFloat(places[0].x),
+          latitude: location.latitude,
+          longitude: location.longitude,
           latitudeDelta: 0.01,
           longitudeDelta: 0.01,
         });
+      } else {
+        Alert.alert('검색 실패', '검색 결과가 없습니다.');
       }
     } catch (error) {
       console.error('검색 중 오류 발생:', error);
+      Alert.alert('오류', '위치 검색 중 오류가 발생했습니다.');
     }
   };
 
@@ -64,8 +68,10 @@ export default function App() {
           value={searchText}
           onChangeText={setSearchText}
           placeholder="장소를 검색하세요"
+          onSubmitEditing={searchLocation}
+          returnKeyType="search"
         />
-        <Pressable style={styles.searchButton} onPress={searchPlaces}>
+        <Pressable style={styles.searchButton} onPress={searchLocation}>
           <Text style={styles.buttonText}>검색</Text>
         </Pressable>
       </View>
@@ -74,15 +80,15 @@ export default function App() {
         style={styles.map}
         region={region}
       >
-        {places.map((place, index) => (
+        {searchResults.map((result, index) => (
           <Marker
             key={index}
             coordinate={{
-              latitude: parseFloat(place.y),
-              longitude: parseFloat(place.x),
+              latitude: result.latitude,
+              longitude: result.longitude
             }}
-            title={place.place_name}
-            description={place.address_name}
+            title={result.name}
+            description={result.address}
           />
         ))}
       </MapView>
